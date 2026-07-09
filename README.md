@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 3 — Infraestructura de datos completa (esquema, RLS, Storage, tipos). Sin lógica de negocio (IA, documentos, pagos) todavía.
+> **Estado:** Fase 4 — Subida y gestión de documentos PDF. El procesamiento (chunks, embeddings) llega en la Fase 5.
 
 ## Stack
 

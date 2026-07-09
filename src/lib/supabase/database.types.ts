@@ -677,7 +677,8 @@ export type Database = {
         | "consumption"
         | "refund"
         | "adjustment";
-      document_status: "uploading" | "processing" | "ready" | "failed";
+      document_status:
+        "uploading" | "processing" | "ready" | "failed" | "processed";
       question_difficulty: "easy" | "medium" | "hard";
       test_status: "generating" | "ready" | "failed";
     };
@@ -827,7 +828,13 @@ export const Constants = {
         "refund",
         "adjustment",
       ],
-      document_status: ["uploading", "processing", "ready", "failed"],
+      document_status: [
+        "uploading",
+        "processing",
+        "ready",
+        "failed",
+        "processed",
+      ],
       question_difficulty: ["easy", "medium", "hard"],
       test_status: ["generating", "ready", "failed"],
     },

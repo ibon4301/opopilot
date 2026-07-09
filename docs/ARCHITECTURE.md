@@ -1,6 +1,6 @@
 # Arquitectura — OpoPilot
 
-Decisiones de arquitectura (Fases 1–3) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
+Decisiones de arquitectura (Fases 1–4) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
 
 ## Principios
 
@@ -71,6 +71,16 @@ Decisiones de arquitectura (Fases 1–3) y su justificación. El objetivo: escal
 **Seguridad en el borde de la base de datos.** RLS en todas las tablas + grants explícitos por tabla (con updates restringidos por columna): aunque una Server Action tuviera un bug, un usuario no puede leer ni escribir datos de otro. El `user_id` desnormalizado de las tablas hijas está garantizado por FKs compuestas `(id, user_id)`, no por convención.
 
 **Tipos generados, no mantenidos.** `lib/supabase/database.types.ts` lo genera el CLI de Supabase desde el esquema real; los tres clientes (`client.ts`, `server.ts`, `middleware.ts`) están parametrizados con `Database`, así cada `select`/`insert` queda tipado de extremo a extremo. Los helpers de uso diario (`Tables<…>`, `Enums<…>`) se reexportan desde `lib/supabase/types.ts`.
+
+## Documentos (Fase 4)
+
+**Subida en tres pasos, con el servidor como árbitro.** `registerDocumentAction` crea la fila (`status: uploading`) y devuelve la ruta `{user_id}/{document_id}.pdf`; el cliente sube el PDF **directamente a Storage**; `finalizeDocumentUploadAction` verifica en el servidor que el objeto existe (`storage.info()`) antes de marcar `ready`. El estado nunca depende de lo que afirme el cliente.
+
+**Por qué la subida no pasa por una Server Action.** Enviar el archivo al servidor de Next lo transferiría dos veces (cliente → Next → Storage), obligaría a subir `serverActions.bodySizeLimit` a 50 MB y no daría progreso real. La subida directa usa el endpoint REST de Storage con el JWT del usuario vía `XMLHttpRequest` (progreso real con `upload.onprogress`); la seguridad la imponen las policies RLS de la carpeta y los límites de MIME/tamaño del bucket — todo del lado del servidor de Supabase.
+
+**Sin huérfanos, por diseño.** Si la subida falla tras registrar, el cliente elimina el registro (best-effort). Al eliminar, primero se borra el archivo y después la fila: si el segundo paso fallara, reintentar es seguro (borrar un objeto inexistente no es error) y nunca queda un archivo sin fila que lo referencie.
+
+**Estados preparados para la Fase 5.** `uploading → ready` (subido) `→ processing → processed | failed`. La Fase 5 solo tiene que tomar documentos en `ready` y llevarlos por el pipeline; la UI (badges, tabla) ya conoce los cinco estados.
 
 ## Escalabilidad a 100+ pantallas
 
