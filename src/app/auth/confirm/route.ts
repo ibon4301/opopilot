@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 import { ROUTES } from "@/constants/routes";
+import { logActionError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(new URL(nextPath, request.url));
     }
+    logActionError("auth.confirm", error);
   }
 
   return NextResponse.redirect(

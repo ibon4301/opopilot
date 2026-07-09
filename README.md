@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 4 — Subida y gestión de documentos PDF. El procesamiento (chunks, embeddings) llega en la Fase 5.
+> **Estado:** Fase 5 — Procesamiento de PDFs (extracción, limpieza y chunking). Los embeddings y la búsqueda semántica llegan en la Fase 6.
 
 ## Stack
 
@@ -36,6 +36,8 @@ Abre [http://localhost:3000](http://localhost:3000).
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://<tu-proyecto>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+# Solo servidor (pipeline de procesamiento); nunca NEXT_PUBLIC_
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ```
 
 3. En `Authentication → URL Configuration`, añade `http://localhost:3000/auth/confirm` a las Redirect URLs (y tu dominio en producción).

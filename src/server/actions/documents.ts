@@ -11,6 +11,10 @@ import {
   registerDocumentSchema,
   type RegisterDocumentInput,
 } from "@/lib/validations/documents";
+import {
+  DocumentProcessingError,
+  processDocument,
+} from "@/services/document-processing/document-processing-service";
 import type { ActionResult } from "@/types";
 import { toDisplayFilename } from "@/utils/filename";
 
@@ -122,6 +126,78 @@ export async function finalizeDocumentUploadAction(
 
   revalidatePath(ROUTES.documents);
   return { success: true, data: undefined };
+}
+
+/**
+ * Lanza el pipeline de procesamiento (Fase 5). La transición de estado
+ * es condicional en la base de datos (`ready`/`failed` → `processing`),
+ * así que dos clics simultáneos no procesan dos veces; RLS garantiza
+ * que solo el dueño puede iniciarla. El trabajo pesado vive en
+ * services/document-processing.
+ */
+export async function processDocumentAction(
+  documentId: string,
+): Promise<ActionResult<{ chunkCount: number; pageCount: number }>> {
+  const parsedId = documentIdSchema.safeParse(documentId);
+  if (!parsedId.success) {
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: SESSION_ERROR };
+  }
+
+  const supabase = await createClient();
+
+  const { data: claimed, error: claimError } = await supabase
+    .from("documents")
+    .update({ status: "processing", error_message: null })
+    .eq("id", parsedId.data)
+    .in("status", ["ready", "failed"])
+    .select("id")
+    .maybeSingle();
+
+  if (claimError) {
+    logActionError("documents.process.claim", claimError);
+    return { success: false, error: GENERIC_ERROR };
+  }
+
+  if (!claimed) {
+    // Sin transición: o no existe/no es suyo, o no está en un estado procesable.
+    return {
+      success: false,
+      error:
+        "El documento no se puede procesar ahora (¿ya está procesado o en curso?).",
+    };
+  }
+
+  try {
+    const result = await processDocument(parsedId.data);
+    revalidatePath(ROUTES.documents);
+    return { success: true, data: result };
+  } catch (error) {
+    logActionError("documents.process", error);
+    // El servicio deja el documento en `failed`; si murió antes de poder
+    // hacerlo (p. ej. service role key sin configurar), lo revertimos
+    // aquí para que no quede atascado en `processing`.
+    await supabase
+      .from("documents")
+      .update({
+        status: "failed",
+        error_message: "El procesamiento no pudo completarse.",
+      })
+      .eq("id", parsedId.data)
+      .eq("status", "processing");
+    revalidatePath(ROUTES.documents);
+    return {
+      success: false,
+      error:
+        error instanceof DocumentProcessingError
+          ? error.message
+          : "El procesamiento ha fallado. Inténtalo de nuevo.",
+    };
+  }
 }
 
 /**

@@ -9,6 +9,7 @@ import {
 import { formatBytes, formatDate } from "@/utils/format";
 
 import type { DocumentRow } from "../types";
+import { DocumentProcessButton } from "./document-process-button";
 import { DocumentRowActions } from "./document-row-actions";
 import { DocumentStatusBadge } from "./document-status-badge";
 
@@ -52,7 +53,10 @@ export function DocumentsTable({ documents }: { documents: DocumentRow[] }) {
                 {formatDate(document.created_at)}
               </TableCell>
               <TableCell className="text-right">
-                <DocumentRowActions document={document} />
+                <div className="flex items-center justify-end gap-1">
+                  <DocumentProcessButton document={document} />
+                  <DocumentRowActions document={document} />
+                </div>
               </TableCell>
             </TableRow>
           ))}

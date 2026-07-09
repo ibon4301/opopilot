@@ -1,6 +1,6 @@
 # Arquitectura — OpoPilot
 
-Decisiones de arquitectura (Fases 1–4) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
+Decisiones de arquitectura (Fases 1–5) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
 
 ## Principios
 
@@ -81,6 +81,28 @@ Decisiones de arquitectura (Fases 1–4) y su justificación. El objetivo: escal
 **Sin huérfanos, por diseño.** Si la subida falla tras registrar, el cliente elimina el registro (best-effort). Al eliminar, primero se borra el archivo y después la fila: si el segundo paso fallara, reintentar es seguro (borrar un objeto inexistente no es error) y nunca queda un archivo sin fila que lo referencie.
 
 **Estados preparados para la Fase 5.** `uploading → ready` (subido) `→ processing → processed | failed`. La Fase 5 solo tiene que tomar documentos en `ready` y llevarlos por el pipeline; la UI (badges, tabla) ya conoce los cinco estados.
+
+## Procesamiento de PDFs (Fase 5)
+
+**Pipeline encapsulado en un servicio.** `services/document-processing/` contiene todo el pipeline; la Server Action solo valida permisos, reclama la transición de estado y delega:
+
+```
+processDocumentAction (contexto usuario: authz + claim ready|failed → processing)
+  └─ processDocument (service role)
+       descargar PDF → extraer texto por página (unpdf) → limpiar
+       → chunkear → reemplazar document_chunks → status processed
+       (cualquier fallo → status failed + error_message)
+```
+
+**unpdf como extractor.** Motor PDF.js de Mozilla (el más probado que existe) empaquetado para entornos de servidor: sin workers, sin dependencias nativas, y con extracción por página conservando saltos de línea — imprescindible para `page_number` y para reconstruir párrafos.
+
+**Limpieza como pasos componibles** (`text-cleaner.ts`): normalizar caracteres, unir palabras cortadas con guion, reconstruir párrafos con heurísticas (fin de frase, títulos, líneas basura) y colapsar espacios. Cada paso es una función pequeña; el pipeline es un array.
+
+**Chunking jerárquico con solape** (`text-chunker.ts`): párrafos completos hasta ~1100 caracteres (~275 tokens); un párrafo que no cabe se divide por frases y solo se corta por palabras como último recurso. Cada chunk arranca con las últimas frases del anterior (~200 caracteres) para no perder contexto en los cortes, y guarda la página de su primera unidad real.
+
+**Dos clientes, dos responsabilidades.** El claim de estado corre con el cliente del usuario (RLS decide la propiedad; la transición condicional `ready|failed → processing` en el `update` evita dobles procesamientos). El pipeline corre con el **service role** (`lib/supabase/admin.ts`, clave en `env.server.ts` con guard anti-cliente): `document_chunks` solo admite escrituras del servidor por diseño de la Fase 3. El reemplazo de chunks (delete + insert por lotes) hace el reproceso idempotente.
+
+**Procesamiento manual (por ahora).** El botón "Procesar" facilita el desarrollo; cuando el pipeline sea automático (subida → proceso → embeddings), la misma función de servicio se invocará desde un job en segundo plano sin tocar su interior.
 
 ## Escalabilidad a 100+ pantallas
 

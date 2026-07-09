@@ -39,6 +39,9 @@ export function DocumentInfoDialog({
         ? formatDateTime(document.processed_at)
         : "—",
     },
+    ...(document.error_message
+      ? [{ label: "Error", value: document.error_message }]
+      : []),
   ];
 
   return (

@@ -5,6 +5,7 @@ import { isAuthApiError } from "@supabase/supabase-js";
 
 import { env } from "@/config/env";
 import { ROUTES } from "@/constants/routes";
+import { logActionError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
 import {
   forgotPasswordSchema,
@@ -24,6 +25,11 @@ const GENERIC_ERROR = "Algo ha ido mal. Inténtalo de nuevo en unos segundos.";
 
 function translateAuthError(error: unknown): string {
   if (isAuthApiError(error)) {
+    // Error de configuración, no del usuario: mejor decirlo claramente
+    // que esconderlo tras el mensaje genérico.
+    if (error.message.includes("Invalid API key")) {
+      return "La API key de Supabase no es válida. Revisa NEXT_PUBLIC_SUPABASE_ANON_KEY en .env y reinicia el servidor.";
+    }
     switch (error.code) {
       case "invalid_credentials":
         return "Email o contraseña incorrectos.";
@@ -57,6 +63,7 @@ export async function loginAction(input: LoginInput): Promise<AuthResult> {
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
+    logActionError("auth.login", error);
     return { success: false, error: translateAuthError(error) };
   }
 
@@ -82,6 +89,7 @@ export async function registerAction(
   });
 
   if (error) {
+    logActionError("auth.register", error);
     return { success: false, error: translateAuthError(error) };
   }
 
@@ -113,7 +121,11 @@ export async function forgotPasswordAction(
     },
   );
 
-  // No revelamos si el email existe: solo informamos de errores operativos.
+  // No revelamos si el email existe: solo informamos de errores operativos,
+  // pero cualquier error queda logueado en el servidor.
+  if (error) {
+    logActionError("auth.forgot-password", error);
+  }
   if (error && isAuthApiError(error) && error.status === 429) {
     return { success: false, error: translateAuthError(error) };
   }
@@ -146,6 +158,7 @@ export async function resetPasswordAction(
   });
 
   if (error) {
+    logActionError("auth.reset-password", error);
     return { success: false, error: translateAuthError(error) };
   }
 
