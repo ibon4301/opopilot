@@ -114,6 +114,18 @@ processDocumentAction (contexto usuario: authz + claim ready|failed → processi
 
 **Modelo acoplado al esquema a propósito.** `gemini-embedding-001` con `outputDimensionality: 1536` coincide con `vector(1536)`; como Gemini solo normaliza en su dimensión nativa (3072), el proveedor renormaliza los vectores antes de guardarlos. Las constantes viven juntas en `gemini-embeddings.ts` con la advertencia de que cambiar de modelo o dimensión implica migrar la columna y re-embeber.
 
+## Generación de tests con IA (Fase 7)
+
+**Mismo patrón que embeddings: contrato + proveedor + orquestación.** `services/test-generation/` separa el contrato (`provider.ts`: `GenerateQuestionsFn`, `TestGenerationError`), el proveedor (`gemini-test-provider.ts`), el prompt (`prompts.ts`), el contrato de salida (`schemas.ts`) y la validación (`validators.ts`); `test-generation-service.ts` orquesta recuperación de contexto → prompt → modelo → validación → persistencia. El servicio recibe el cliente Supabase por parámetro (no importa `next/*`), así que es testeable fuera de Next y el proveedor es sustituible. El cliente `GoogleGenAI` es único y compartido (`services/gemini/client.ts`) entre embeddings y generación.
+
+**El modelo nunca ve el PDF entero.** Con tema: embedding de la consulta (los de los chunks ya existen y **nunca** se recalculan) + top-12 por similitud vía `match_document_chunks` con su nuevo `filter_document_id`; por debajo de un umbral de similitud, error controlado. Sin tema: muestreo uniforme de hasta 24 chunks a lo largo del documento — cobertura completa con presupuesto fijo de tokens y cero llamadas de embedding.
+
+**Salida estructurada, no texto parseado.** El mismo schema Zod valida la respuesta y (vía `z.toJSONSchema`) viaja a Gemini como `responseJsonSchema`: el contrato no puede divergir. La validación añade lo que el schema no expresa (número exacto de preguntas, opciones no repetidas) y ante una respuesta inválida se reintenta **una sola vez**; `insufficientContext=true` es una respuesta deliberada del modelo (el contexto no da para el test) y se convierte en error controlado sin reintentar — nunca se rellena con contenido inventado.
+
+**Modelos con fallback por saturación.** gemini-2.5-flash (objetivo original) fue retirado de la API; la cadena `TEST_GENERATION_MODELS` intenta `gemini-3.5-flash` y solo ante 503 cae a los siguientes de la misma familia. Sin presupuesto de "thinking" (más barato) y `temperature` baja.
+
+**El contexto se guarda con el test.** `test_context_chunks` registra qué chunks vio el modelo al generar cada test: la base para explicar respuestas, enlazar a los apuntes, generar flashcards del mismo material o analizar qué partes del temario producen más fallos (fases futuras). La persistencia corre en contexto de usuario (RLS valida cada insert) y si preguntas o contexto fallan se borra el test para no dejar registros a medias.
+
 ## Escalabilidad a 100+ pantallas
 
 - Las rutas se organizan con **route groups** (`(marketing)`, `(auth)`, `(dashboard)`) cada una con su layout, sin afectar URLs.

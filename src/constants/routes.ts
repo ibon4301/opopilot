@@ -35,6 +35,11 @@ export const PROTECTED_ROUTES: readonly AppRoute[] = [
 
 export const AUTH_ROUTES: readonly AppRoute[] = [ROUTES.login, ROUTES.register];
 
+/** Detalle de un test generado; cae bajo el prefijo protegido /tests. */
+export function testDetailRoute(testId: string) {
+  return `${ROUTES.tests}/${testId}`;
+}
+
 export function isProtectedRoute(pathname: string) {
   return PROTECTED_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),

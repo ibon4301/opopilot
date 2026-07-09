@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 6 — Embeddings (Gemini) y búsqueda semántica sobre los documentos. El chat con documentos y la generación de tests llegan en fases posteriores.
+> **Estado:** Fase 7 — Generador de tests con IA sobre los documentos indexados. Responder y corregir tests, flashcards y chat llegan en fases posteriores.
 
 ## Stack
 
@@ -42,9 +42,9 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 GEMINI_API_KEY=<gemini-api-key>
 ```
 
-### Configurar Gemini (embeddings)
+### Configurar Gemini (embeddings y tests)
 
-Los embeddings usan la API de Gemini (`gemini-embedding-001`), con capa gratuita suficiente para desarrollo:
+Los embeddings usan la API de Gemini (`gemini-embedding-001`) y la generación de tests usa la familia Gemini Flash (`gemini-3.5-flash`, con fallback automático a otros Flash si el modelo está saturado; `gemini-2.5-flash` fue retirado de la API). Capa gratuita suficiente para desarrollo:
 
 1. Entra en [Google AI Studio](https://aistudio.google.com/) con tu cuenta de Google.
 2. Ve a la sección **API keys** ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
@@ -93,6 +93,17 @@ npm run format
 2. Pulsa **Generar embeddings** (indexa los fragmentos con `gemini-embedding-001`).
 3. Usa la tarjeta **Búsqueda semántica** al pie de `/documents`: busca por significado ("¿qué dice sobre los plazos de recurso?") y verás los fragmentos más relevantes con documento, página y similitud.
 
+### Generar tests con IA
+
+Con un documento en estado **Indexado** (procesado + embeddings):
+
+1. Ve a `/tests` y elige el documento, el número de preguntas (5, 10 o 20) y la dificultad (fácil, media, difícil o mixta).
+2. Opcionalmente escribe un **tema** ("los plazos del recurso de alzada"): el contexto se recupera por similitud semántica solo de ese tema; si lo dejas vacío, se muestrean fragmentos de todo el documento.
+3. Pulsa **Generar test**. La IA (Gemini Flash, salida estructurada JSON) crea las preguntas usando únicamente el contenido del documento; si el contexto no da para el test pedido devuelve un error claro en vez de inventar.
+4. El test se guarda con sus preguntas y con los fragmentos usados como contexto, y se abre en `/tests/{id}`: enunciado, 4 opciones con la correcta marcada, explicación y dificultad de cada pregunta.
+
+> Todavía no se pueden responder ni corregir tests: eso llega en la siguiente fase.
+
 ## Scripts
 
 | Script                 | Descripción                        |
@@ -131,8 +142,9 @@ src/
 ├── lib/
 │   ├── supabase/     # Clientes browser/server tipados, helper de proxy, tipos generados
 │   └── validations/  # Schemas de Zod
-├── server/actions/   # Server Actions (auth.ts)
-├── services/         # Clientes de servicios externos (IA, pagos… futuras fases)
+├── server/actions/   # Server Actions (auth, documents, embeddings, tests)
+├── services/         # Lógica de dominio pesada: gemini (cliente compartido),
+│                     #   document-processing, embeddings, test-generation
 ├── providers/        # Providers de contexto global
 ├── types/            # Tipos compartidos
 ├── styles/           # Design tokens (theme.css)

@@ -1,6 +1,7 @@
-import { ApiError, GoogleGenAI } from "@google/genai";
+import { ApiError } from "@google/genai";
 
 import { serverEnv } from "@/config/env.server";
+import { getGeminiClient } from "@/services/gemini/client";
 
 import {
   EmbeddingError,
@@ -40,7 +41,7 @@ export const embedTexts: EmbedFn = async (texts, task) => {
     );
   }
 
-  const gemini = new GoogleGenAI({ apiKey: serverEnv.geminiApiKey });
+  const gemini = getGeminiClient();
 
   try {
     const response = await gemini.models.embedContent({

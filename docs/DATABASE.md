@@ -36,6 +36,7 @@ En `supabase/migrations/`, una por dominio:
 | `*_chat.sql`                   | `chat_conversations`, `chat_messages`                                  |
 | `*_usage_logs.sql`             | `usage_logs`                                                           |
 | `*_storage.sql`                | Bucket `documents` + policies de Storage                               |
+| `*_test_generation.sql`        | `tests.topic`, `test_context_chunks`, RPC con `filter_document_id`     |
 
 ### Aplicar en producción
 
@@ -88,7 +89,14 @@ Insertar un hijo con un `user_id` que no sea el dueño del padre viola la FK. In
 
 ### Embeddings
 
-`document_chunks.embedding` es `vector(1536)` (dimensión configurada de `gemini-embedding-001` vía `outputDimensionality`; los vectores se renormalizan antes de guardarse) con índice HNSW por distancia coseno. La RPC `match_document_chunks(query_embedding, match_count)` (Fase 6) devuelve el top-k de chunks del usuario por similitud coseno con el nombre del documento y la página; es `SECURITY INVOKER` (RLS aplica) con filtro explícito por `auth.uid()` y `EXECUTE` solo para `authenticated`/`service_role`.
+`document_chunks.embedding` es `vector(1536)` (dimensión configurada de `gemini-embedding-001` vía `outputDimensionality`; los vectores se renormalizan antes de guardarse) con índice HNSW por distancia coseno. La RPC `match_document_chunks(query_embedding, match_count, filter_document_id)` (Fase 6; el filtro opcional por documento llegó en la Fase 7) devuelve el top-k de chunks del usuario por similitud coseno con el nombre del documento y la página; es `SECURITY INVOKER` (RLS aplica) con filtro explícito por `auth.uid()` y `EXECUTE` solo para `authenticated`/`service_role`.
+
+### Tests generados con IA (Fase 7)
+
+Los tests generados reutilizan las tablas `tests` y `questions` diseñadas en la Fase 3, con dos añadidos:
+
+- **`tests.topic`**: el tema concreto que pidió el usuario; `null` = test sobre el documento completo (igual que `difficulty null` = mixta).
+- **`test_context_chunks (test_id, chunk_id, user_id)`**: los chunks que formaron el contexto con el que la IA generó el test. Sin update (el vínculo es inmutable); el borrado llega en cascada desde `tests` o desde `document_chunks`. Habilita fases futuras: explicar respuestas desde la fuente, enlazar a los apuntes, flashcards del mismo material o análisis de qué partes del temario fallan más. Para su FK compuesta, `document_chunks` ganó `unique (id, user_id)`.
 
 ### Cascadas: `cascade` vs `set null`
 

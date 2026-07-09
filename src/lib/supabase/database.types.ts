@@ -551,6 +551,42 @@ export type Database = {
           },
         ];
       };
+      test_context_chunks: {
+        Row: {
+          chunk_id: string;
+          created_at: string;
+          test_id: string;
+          user_id: string;
+        };
+        Insert: {
+          chunk_id: string;
+          created_at?: string;
+          test_id: string;
+          user_id: string;
+        };
+        Update: {
+          chunk_id?: string;
+          created_at?: string;
+          test_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "test_context_chunks_chunk_id_user_id_fkey";
+            columns: ["chunk_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "document_chunks";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "test_context_chunks_test_id_user_id_fkey";
+            columns: ["test_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "tests";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       tests: {
         Row: {
           created_at: string;
@@ -561,6 +597,7 @@ export type Database = {
           question_count: number;
           status: Database["public"]["Enums"]["test_status"];
           title: string;
+          topic: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -574,6 +611,7 @@ export type Database = {
           question_count?: number;
           status?: Database["public"]["Enums"]["test_status"];
           title: string;
+          topic?: string | null;
           updated_at?: string;
           user_id: string;
         };
@@ -587,6 +625,7 @@ export type Database = {
           question_count?: number;
           status?: Database["public"]["Enums"]["test_status"];
           title?: string;
+          topic?: string | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -657,7 +696,11 @@ export type Database = {
     };
     Functions: {
       match_document_chunks: {
-        Args: { match_count?: number; query_embedding: string };
+        Args: {
+          filter_document_id?: string;
+          match_count?: number;
+          query_embedding: string;
+        };
         Returns: {
           chunk_id: string;
           content: string;
