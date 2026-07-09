@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 2 — Autenticación y dashboard protegido. Sin lógica de negocio (IA, documentos, pagos) todavía.
+> **Estado:** Fase 3 — Infraestructura de datos completa (esquema, RLS, Storage, tipos). Sin lógica de negocio (IA, documentos, pagos) todavía.
 
 ## Stack
 
@@ -40,6 +40,29 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 
 3. En `Authentication → URL Configuration`, añade `http://localhost:3000/auth/confirm` a las Redirect URLs (y tu dominio en producción).
 4. Con "Confirm email" activado (por defecto), el registro envía un enlace de verificación; el flujo de recuperación de contraseña usa el mismo endpoint `/auth/confirm`.
+5. Aplica las migraciones de `supabase/migrations/` (esquema, RLS y Storage):
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase db push
+```
+
+### Base de datos
+
+El esquema completo (tablas, policies, triggers, bucket de Storage) vive en `supabase/migrations/` y está documentado en [`docs/DATABASE.md`](docs/DATABASE.md). Para desarrollo local con Docker:
+
+```bash
+npx supabase start     # stack local con migraciones aplicadas
+npx supabase db reset  # re-aplica las migraciones desde cero
+```
+
+Tras cambiar el esquema, regenera los tipos:
+
+```bash
+npx supabase gen types typescript --local > src/lib/supabase/database.types.ts
+npm run format
+```
 
 ### Probar auth en local
 
@@ -66,6 +89,9 @@ Los commits pasan automáticamente por `lint-staged` (ESLint + Prettier) vía Hu
 ## Estructura
 
 ```
+supabase/
+├── config.toml       # Configuración del stack local de Supabase
+└── migrations/       # Migraciones SQL versionadas (esquema, RLS, Storage)
 src/
 ├── app/
 │   ├── (marketing)/  # Rutas públicas: landing, pricing
@@ -81,7 +107,7 @@ src/
 ├── features/         # Módulos por dominio (landing, auth, dashboard…)
 ├── hooks/            # Hooks de React reutilizables
 ├── lib/
-│   ├── supabase/     # Clientes browser/server, helper de proxy, tipos
+│   ├── supabase/     # Clientes browser/server tipados, helper de proxy, tipos generados
 │   └── validations/  # Schemas de Zod
 ├── server/actions/   # Server Actions (auth.ts)
 ├── services/         # Clientes de servicios externos (IA, pagos… futuras fases)
@@ -93,7 +119,7 @@ src/
 └── utils/            # Utilidades puras sin dependencias de framework
 ```
 
-Documentación detallada en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) y [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
+Documentación detallada en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DATABASE.md`](docs/DATABASE.md) y [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
 
 ## Sistema de diseño
 

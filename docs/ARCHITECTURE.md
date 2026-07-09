@@ -1,6 +1,6 @@
 # Arquitectura — OpoPilot
 
-Decisiones de arquitectura (Fases 1–2) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
+Decisiones de arquitectura (Fases 1–3) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
 
 ## Principios
 
@@ -61,6 +61,16 @@ Decisiones de arquitectura (Fases 1–2) y su justificación. El objetivo: escal
 **Flujos por email.** `app/auth/confirm/route.ts` verifica los enlaces de Supabase (confirmación de cuenta y recovery) vía `verifyOtp` y redirige según `next`; los enlaces inválidos aterrizan en `/login?error=confirm`.
 
 **Formularios.** React Hook Form + `zodResolver` con los mismos schemas (`lib/validations/auth.ts`) que usan las actions: una sola fuente de verdad de validación en cliente y servidor.
+
+## Datos (Fase 3)
+
+**Esquema completo por adelantado.** Las 14 tablas de todas las fases del roadmap (documentos, chunks con embeddings, tests, intentos, flashcards, planes, chat, créditos, usage logs) se diseñaron e implementaron de una vez para que las fases 4–15 no necesiten migraciones estructurales. Detalle completo y justificación de cada decisión en [`DATABASE.md`](DATABASE.md).
+
+**Migraciones como fuente de verdad.** El esquema vive en `supabase/migrations/` (una migración por dominio), versionado con el código. Nada se crea a mano en el dashboard de Supabase: local se levanta con `supabase start`, producción se actualiza con `supabase db push`.
+
+**Seguridad en el borde de la base de datos.** RLS en todas las tablas + grants explícitos por tabla (con updates restringidos por columna): aunque una Server Action tuviera un bug, un usuario no puede leer ni escribir datos de otro. El `user_id` desnormalizado de las tablas hijas está garantizado por FKs compuestas `(id, user_id)`, no por convención.
+
+**Tipos generados, no mantenidos.** `lib/supabase/database.types.ts` lo genera el CLI de Supabase desde el esquema real; los tres clientes (`client.ts`, `server.ts`, `middleware.ts`) están parametrizados con `Database`, así cada `select`/`insert` queda tipado de extremo a extremo. Los helpers de uso diario (`Tables<…>`, `Enums<…>`) se reexportan desde `lib/supabase/types.ts`.
 
 ## Escalabilidad a 100+ pantallas
 
