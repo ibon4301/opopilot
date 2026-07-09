@@ -12,10 +12,17 @@ import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/types";
 import {
   generateTestSchema,
+  submitAttemptSchema,
   testIdSchema,
   type GenerateTestInput,
+  type SubmitAttemptInput,
 } from "@/lib/validations/tests";
 import { EmbeddingError } from "@/services/embeddings/embedding-client";
+import {
+  submitTestAttempt,
+  TestAttemptError,
+  type GradedAttempt,
+} from "@/services/test-attempts/test-attempt-service";
 import { TestGenerationError } from "@/services/test-generation/provider";
 import {
   generateTest,
@@ -27,8 +34,17 @@ export type TestListItem = Tables<"tests"> & {
   documents: Pick<Tables<"documents">, "filename"> | null;
 };
 
+/**
+ * Pregunta tal y como viaja al cliente para HACER el test: sin
+ * correct_option ni explanation, que solo llegan tras corregir.
+ */
+export type TakeableQuestion = Pick<
+  Tables<"questions">,
+  "id" | "order_index" | "statement" | "options" | "difficulty"
+>;
+
 export type TestDetail = TestListItem & {
-  questions: Tables<"questions">[];
+  questions: TakeableQuestion[];
 };
 
 function toFriendlyError(error: unknown): string {
@@ -96,7 +112,11 @@ export async function listTestsAction(): Promise<ActionResult<TestListItem[]>> {
   return { success: true, data };
 }
 
-/** Un test con sus preguntas ordenadas; RLS limita al dueño. */
+/**
+ * Un test con sus preguntas ordenadas, listo para hacerse; RLS limita
+ * al dueño. La opción correcta y la explicación se excluyen a
+ * propósito: solo las devuelve submitTestAttemptAction al corregir.
+ */
 export async function getTestAction(
   testId: string,
 ): Promise<ActionResult<TestDetail>> {
@@ -113,7 +133,9 @@ export async function getTestAction(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tests")
-    .select("*, documents(filename), questions(*)")
+    .select(
+      "*, documents(filename), questions(id, order_index, statement, options, difficulty)",
+    )
     .eq("id", parsedId.data)
     .maybeSingle();
 
@@ -134,4 +156,47 @@ export async function getTestAction(
       ),
     },
   };
+}
+
+/**
+ * Corrige un intento del test y lo guarda en test_attempts /
+ * test_attempt_answers. La calificación ocurre íntegramente en el
+ * servidor; la respuesta incluye por primera vez la opción correcta y
+ * la explicación de cada pregunta.
+ */
+export async function submitTestAttemptAction(
+  input: SubmitAttemptInput,
+): Promise<ActionResult<GradedAttempt>> {
+  const parsed = submitAttemptSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? GENERIC_ACTION_ERROR,
+    };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { success: false, error: SESSION_EXPIRED_ERROR };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    const result = await submitTestAttempt({
+      supabase,
+      userId: user.id,
+      input: parsed.data,
+    });
+    return { success: true, data: result };
+  } catch (error) {
+    logActionError("tests.attempt", error);
+    return {
+      success: false,
+      error:
+        error instanceof TestAttemptError
+          ? error.message
+          : GENERIC_ACTION_ERROR,
+    };
+  }
 }
