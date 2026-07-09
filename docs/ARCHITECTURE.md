@@ -1,6 +1,6 @@
 # Arquitectura — OpoPilot
 
-Decisiones de arquitectura (Fases 1–5) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
+Decisiones de arquitectura (Fases 1–6) y su justificación. El objetivo: escalar a 100+ pantallas sin reorganizar el proyecto.
 
 ## Principios
 
@@ -36,7 +36,7 @@ Decisiones de arquitectura (Fases 1–5) y su justificación. El objetivo: escal
 
 **Server Actions.** Viven en `server/actions/`, agrupadas por dominio (`server/actions/auth.ts`). Validan la entrada con Zod en el borde (nunca se confía en la validación del cliente) y devuelven resultados tipados discriminados (`{ success: true; data } | { success: false; error }`) con mensajes de error ya traducidos para la UI. Las mutaciones nunca se hacen desde route handlers si una action sirve.
 
-**Servicios (futuro).** Cada servicio externo (OpenAI/Anthropic, Stripe, storage) expone una interfaz propia en `services/` para poder sustituir el proveedor sin tocar features.
+**Servicios (futuro).** Cada servicio externo (proveedores de IA, Stripe, storage) expone una interfaz propia en `services/` para poder sustituir el proveedor sin tocar features.
 
 **Hooks.** Genéricos en `hooks/`; de dominio en `features/<x>/hooks/`. Prefijo `use-`, un hook por archivo.
 
@@ -103,6 +103,16 @@ processDocumentAction (contexto usuario: authz + claim ready|failed → processi
 **Dos clientes, dos responsabilidades.** El claim de estado corre con el cliente del usuario (RLS decide la propiedad; la transición condicional `ready|failed → processing` en el `update` evita dobles procesamientos). El pipeline corre con el **service role** (`lib/supabase/admin.ts`, clave en `env.server.ts` con guard anti-cliente): `document_chunks` solo admite escrituras del servidor por diseño de la Fase 3. El reemplazo de chunks (delete + insert por lotes) hace el reproceso idempotente.
 
 **Procesamiento manual (por ahora).** El botón "Procesar" facilita el desarrollo; cuando el pipeline sea automático (subida → proceso → embeddings), la misma función de servicio se invocará desde un job en segundo plano sin tocar su interior.
+
+## Embeddings y búsqueda semántica (Fase 6)
+
+**Servicio con proveedor intercambiable.** `services/embeddings/` separa el contrato (`embedding-client.ts`: `EmbedFn`, `EmbeddingTask`, `EmbeddingError`) del proveedor (`gemini-embeddings.ts`) y de la orquestación (`document-embedding-service.ts`). La firma inyectable permite testear todo el pipeline con un stub determinista sin gastar API — de hecho la migración OpenAI → Gemini solo tocó el archivo del proveedor y los puntos de import. Gemini distingue `RETRIEVAL_DOCUMENT` (indexar) de `RETRIEVAL_QUERY` (buscar), lo que mejora la recuperación; el contrato lo expone como `EmbeddingTask`.
+
+**Reanudable por diseño.** Solo se embeben chunks con `embedding IS NULL` y cada lote (100 chunks, bajo el tope de 250 por petición de Gemini) se persiste al completarse: si el proveedor falla a mitad (p. ej. rate limit de la capa gratuita), la siguiente ejecución continúa donde se quedó sin duplicar llamadas ni coste. `force: true` (regenerar) re-embebe todo. Al quedar cero pendientes, el documento pasa a `embedded` — estado terminal del pipeline: `uploading → ready → processing → processed → embedded | failed`.
+
+**Búsqueda con RLS, no a pesar de él.** La RPC `match_document_chunks` es `SECURITY INVOKER`: corre como el usuario autenticado, así que las policies de RLS aplican dentro de la función, con filtro explícito por `auth.uid()` como defensa en profundidad, y `EXECUTE` revocado para `anon`. Ordena por distancia coseno (`<=>`, índice HNSW) y devuelve chunk, documento, página y similitud. La Server Action de búsqueda comprueba que hay chunks indexados **antes** de gastar la llamada a OpenAI que embebe la consulta.
+
+**Modelo acoplado al esquema a propósito.** `gemini-embedding-001` con `outputDimensionality: 1536` coincide con `vector(1536)`; como Gemini solo normaliza en su dimensión nativa (3072), el proveedor renormaliza los vectores antes de guardarlos. Las constantes viven juntas en `gemini-embeddings.ts` con la advertencia de que cambiar de modelo o dimensión implica migrar la columna y re-embeber.
 
 ## Escalabilidad a 100+ pantallas
 

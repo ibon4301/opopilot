@@ -1,0 +1,85 @@
+import { ApiError, GoogleGenAI } from "@google/genai";
+
+import { serverEnv } from "@/config/env.server";
+
+import {
+  EmbeddingError,
+  type EmbeddingTask,
+  type EmbedFn,
+} from "./embedding-client";
+
+/**
+ * Modelo y dimensión acoplados al esquema: document_chunks.embedding es
+ * vector(1536) y gemini-embedding-001 permite fijar esa dimensión con
+ * outputDimensionality. Cambiar de modelo o dimensión implica migrar la
+ * columna y re-embeber todos los documentos.
+ */
+export const EMBEDDING_MODEL = "gemini-embedding-001";
+export const EMBEDDING_DIMENSIONS = 1536;
+
+const TASK_TYPE: Record<EmbeddingTask, string> = {
+  document: "RETRIEVAL_DOCUMENT",
+  query: "RETRIEVAL_QUERY",
+};
+
+/**
+ * Gemini solo devuelve vectores normalizados en su dimensión nativa
+ * (3072); con outputDimensionality reducida hay que renormalizar, como
+ * recomienda la propia documentación de Google.
+ */
+function normalize(values: number[]): number[] {
+  const norm = Math.hypot(...values);
+  return norm === 0 ? values : values.map((value) => value / norm);
+}
+
+/** Genera embeddings para un lote de textos con la API de Gemini. */
+export const embedTexts: EmbedFn = async (texts, task) => {
+  if (!serverEnv.geminiApiKey) {
+    throw new EmbeddingError(
+      "GEMINI_API_KEY no está configurada. Añádela a .env y reinicia el servidor.",
+    );
+  }
+
+  const gemini = new GoogleGenAI({ apiKey: serverEnv.geminiApiKey });
+
+  try {
+    const response = await gemini.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: texts,
+      config: {
+        taskType: TASK_TYPE[task],
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      },
+    });
+
+    const embeddings = response.embeddings ?? [];
+    if (
+      embeddings.length !== texts.length ||
+      embeddings.some((e) => !e.values)
+    ) {
+      throw new Error(
+        `Respuesta de Gemini incompleta: ${embeddings.length} embeddings para ${texts.length} textos.`,
+      );
+    }
+
+    return embeddings.map((embedding) => normalize(embedding.values!));
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const invalidKey =
+        error.status === 401 ||
+        error.status === 403 ||
+        (error.status === 400 && error.message.includes("API key"));
+      if (invalidKey) {
+        throw new EmbeddingError(
+          "La API key de Gemini no es válida. Revisa GEMINI_API_KEY en .env.",
+        );
+      }
+      if (error.status === 429) {
+        throw new EmbeddingError(
+          "Gemini está limitando las peticiones (capa gratuita). Espera un minuto y vuelve a intentarlo.",
+        );
+      }
+    }
+    throw error;
+  }
+};

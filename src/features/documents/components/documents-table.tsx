@@ -9,6 +9,7 @@ import {
 import { formatBytes, formatDate } from "@/utils/format";
 
 import type { DocumentRow } from "../types";
+import { DocumentEmbedButton } from "./document-embed-button";
 import { DocumentProcessButton } from "./document-process-button";
 import { DocumentRowActions } from "./document-row-actions";
 import { DocumentStatusBadge } from "./document-status-badge";
@@ -55,6 +56,7 @@ export function DocumentsTable({ documents }: { documents: DocumentRow[] }) {
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   <DocumentProcessButton document={document} />
+                  <DocumentEmbedButton document={document} />
                   <DocumentRowActions document={document} />
                 </div>
               </TableCell>

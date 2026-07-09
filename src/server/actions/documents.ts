@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { DOCUMENT_MIME_TYPE, DOCUMENTS_BUCKET } from "@/constants/documents";
+import {
+  GENERIC_ACTION_ERROR as GENERIC_ERROR,
+  SESSION_EXPIRED_ERROR as SESSION_ERROR,
+} from "@/constants/errors";
 import { ROUTES } from "@/constants/routes";
 import { logActionError } from "@/lib/log";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
@@ -17,9 +21,6 @@ import {
 } from "@/services/document-processing/document-processing-service";
 import type { ActionResult } from "@/types";
 import { toDisplayFilename } from "@/utils/filename";
-
-const GENERIC_ERROR = "Algo ha ido mal. Inténtalo de nuevo en unos segundos.";
-const SESSION_ERROR = "Tu sesión ha caducado. Vuelve a iniciar sesión.";
 
 /**
  * Registra el documento en base de datos con estado `uploading` y

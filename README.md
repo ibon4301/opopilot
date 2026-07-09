@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 5 — Procesamiento de PDFs (extracción, limpieza y chunking). Los embeddings y la búsqueda semántica llegan en la Fase 6.
+> **Estado:** Fase 6 — Embeddings (Gemini) y búsqueda semántica sobre los documentos. El chat con documentos y la generación de tests llegan en fases posteriores.
 
 ## Stack
 
@@ -38,7 +38,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://<tu-proyecto>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 # Solo servidor (pipeline de procesamiento); nunca NEXT_PUBLIC_
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+# Solo servidor (embeddings y búsqueda semántica); ver "Configurar Gemini"
+GEMINI_API_KEY=<gemini-api-key>
 ```
+
+### Configurar Gemini (embeddings)
+
+Los embeddings usan la API de Gemini (`gemini-embedding-001`), con capa gratuita suficiente para desarrollo:
+
+1. Entra en [Google AI Studio](https://aistudio.google.com/) con tu cuenta de Google.
+2. Ve a la sección **API keys** ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
+3. Crea una API key nueva y cópiala.
+4. Añádela a tu `.env.local`: `GEMINI_API_KEY=...`
+5. Reinicia el servidor de desarrollo.
+
+> La capa gratuita tiene **rate limits** (peticiones/minuto y día): sobra para desarrollo, pero antes de producción revisa cuotas, límites y costes en la [documentación de precios de Gemini](https://ai.google.dev/pricing).
 
 3. En `Authentication → URL Configuration`, añade `http://localhost:3000/auth/confirm` a las Redirect URLs (y tu dominio en producción).
 4. Con "Confirm email" activado (por defecto), el registro envía un enlace de verificación; el flujo de recuperación de contraseña usa el mismo endpoint `/auth/confirm`.
@@ -72,6 +86,12 @@ npm run format
 - `/login` → entra y aterriza en `/dashboard`.
 - Cualquier ruta privada sin sesión (p. ej. `/tests`) redirige a `/login?next=/tests` y vuelve a ella tras entrar.
 - El menú de usuario (avatar, arriba a la derecha) permite cerrar sesión.
+
+### Probar la búsqueda semántica
+
+1. Sube un PDF en `/documents` y pulsa **Procesar** (extrae texto y crea fragmentos).
+2. Pulsa **Generar embeddings** (indexa los fragmentos con `gemini-embedding-001`).
+3. Usa la tarjeta **Búsqueda semántica** al pie de `/documents`: busca por significado ("¿qué dice sobre los plazos de recurso?") y verás los fragmentos más relevantes con documento, página y similitud.
 
 ## Scripts
 

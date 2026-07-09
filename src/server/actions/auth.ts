@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { isAuthApiError } from "@supabase/supabase-js";
 
 import { env } from "@/config/env";
+import { GENERIC_ACTION_ERROR as GENERIC_ERROR } from "@/constants/errors";
 import { ROUTES } from "@/constants/routes";
 import { logActionError } from "@/lib/log";
 import { createClient } from "@/lib/supabase/server";
@@ -20,8 +21,6 @@ import {
 
 export type AuthResult<T = undefined> =
   { success: true; data: T } | { success: false; error: string };
-
-const GENERIC_ERROR = "Algo ha ido mal. Inténtalo de nuevo en unos segundos.";
 
 function translateAuthError(error: unknown): string {
   if (isAuthApiError(error)) {

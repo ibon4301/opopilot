@@ -88,7 +88,7 @@ Insertar un hijo con un `user_id` que no sea el dueño del padre viola la FK. In
 
 ### Embeddings
 
-`document_chunks.embedding` es `vector(1536)` (dimensión de `text-embedding-3-small` de OpenAI) con índice HNSW por distancia coseno. Si en la Fase 6 se elige otro modelo de embeddings, cambiar la dimensión antes de procesar documentos es una migración trivial (la columna estará vacía). La función RPC de búsqueda (`match_document_chunks`) se añadirá en la Fase 6 junto al pipeline, cuando se conozcan sus parámetros reales.
+`document_chunks.embedding` es `vector(1536)` (dimensión configurada de `gemini-embedding-001` vía `outputDimensionality`; los vectores se renormalizan antes de guardarse) con índice HNSW por distancia coseno. La RPC `match_document_chunks(query_embedding, match_count)` (Fase 6) devuelve el top-k de chunks del usuario por similitud coseno con el nombre del documento y la página; es `SECURITY INVOKER` (RLS aplica) con filtro explícito por `auth.uid()` y `EXECUTE` solo para `authenticated`/`service_role`.
 
 ### Cascadas: `cascade` vs `set null`
 

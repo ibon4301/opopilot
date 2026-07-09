@@ -7,4 +7,5 @@ if (typeof window !== "undefined") {
 
 export const serverEnv = {
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
 } as const;

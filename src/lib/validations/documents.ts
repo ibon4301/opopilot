@@ -52,4 +52,11 @@ export const registerDocumentSchema = z.object({
 
 export const documentIdSchema = z.uuid();
 
+/** Consulta de búsqueda semántica. */
+export const searchQuerySchema = z
+  .string()
+  .trim()
+  .min(3, "Escribe al menos 3 caracteres")
+  .max(300, "La búsqueda no puede superar los 300 caracteres");
+
 export type RegisterDocumentInput = z.infer<typeof registerDocumentSchema>;

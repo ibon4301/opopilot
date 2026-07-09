@@ -4,6 +4,7 @@ import { FadeIn } from "@/components/motion/fade-in";
 import { PageHeader } from "@/components/shared/page-header";
 import { DocumentsEmptyState } from "@/features/documents/components/documents-empty-state";
 import { DocumentsTable } from "@/features/documents/components/documents-table";
+import { SemanticSearchCard } from "@/features/documents/components/semantic-search-card";
 import { UploadDropzone } from "@/features/documents/components/upload-dropzone";
 import { getDocuments } from "@/features/documents/queries";
 
@@ -25,6 +26,9 @@ export default async function DocumentsPage() {
         <DocumentsTable documents={documents} />
       ) : (
         <DocumentsEmptyState />
+      )}
+      {documents.some((document) => document.status === "embedded") && (
+        <SemanticSearchCard />
       )}
     </FadeIn>
   );

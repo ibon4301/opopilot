@@ -656,6 +656,17 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      match_document_chunks: {
+        Args: { match_count?: number; query_embedding: string };
+        Returns: {
+          chunk_id: string;
+          content: string;
+          document_filename: string;
+          document_id: string;
+          page_number: number;
+          similarity: number;
+        }[];
+      };
       spend_credits: {
         Args: { p_amount: number; p_description?: string };
         Returns: number;
@@ -678,7 +689,12 @@ export type Database = {
         | "refund"
         | "adjustment";
       document_status:
-        "uploading" | "processing" | "ready" | "failed" | "processed";
+        | "uploading"
+        | "processing"
+        | "ready"
+        | "failed"
+        | "processed"
+        | "embedded";
       question_difficulty: "easy" | "medium" | "hard";
       test_status: "generating" | "ready" | "failed";
     };
@@ -834,6 +850,7 @@ export const Constants = {
         "ready",
         "failed",
         "processed",
+        "embedded",
       ],
       question_difficulty: ["easy", "medium", "hard"],
       test_status: ["generating", "ready", "failed"],

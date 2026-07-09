@@ -16,6 +16,7 @@ const STATUS_CONFIG: Record<
   ready: { label: "Listo", variant: "default" },
   processing: { label: "Procesando", variant: "secondary", spinning: true },
   processed: { label: "Procesado", variant: "outline" },
+  embedded: { label: "Indexado", variant: "default" },
   failed: { label: "Error", variant: "destructive" },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Info, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import { Info, Loader2, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteDocumentAction } from "@/server/actions/documents";
+import { regenerateEmbeddingsAction } from "@/server/actions/embeddings";
 
 import type { DocumentRow } from "../types";
 import { DocumentInfoDialog } from "./document-info-dialog";
@@ -29,6 +30,22 @@ export function DocumentRowActions({ document }: { document: DocumentRow }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, startDelete] = useTransition();
+  const [isRegenerating, startRegenerate] = useTransition();
+
+  function handleRegenerateEmbeddings() {
+    startRegenerate(async () => {
+      const result = await regenerateEmbeddingsAction(document.id);
+
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(
+        `Embeddings regenerados: ${result.data.embeddedCount} fragmentos.`,
+      );
+    });
+  }
 
   function handleDelete() {
     startDelete(async () => {
@@ -61,6 +78,19 @@ export function DocumentRowActions({ document }: { document: DocumentRow }) {
             <Info aria-hidden />
             Ver información
           </DropdownMenuItem>
+          {document.status === "embedded" && (
+            <DropdownMenuItem
+              disabled={isRegenerating}
+              onSelect={handleRegenerateEmbeddings}
+            >
+              {isRegenerating ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw aria-hidden />
+              )}
+              Regenerar embeddings
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
