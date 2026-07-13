@@ -152,9 +152,7 @@ export function TestRunner({ testId, questions }: TestRunnerProps) {
                       const isCorrectOption =
                         graded?.correctOption === optionIndex;
                       const isWrongSelection =
-                        graded !== undefined &&
-                        isSelected &&
-                        !graded.isCorrect;
+                        graded !== undefined && isSelected && !graded.isCorrect;
 
                       return (
                         <button
@@ -163,9 +161,7 @@ export function TestRunner({ testId, questions }: TestRunnerProps) {
                           role="radio"
                           aria-checked={isSelected}
                           disabled={isSubmitted || isSubmitting}
-                          onClick={() =>
-                            selectOption(question.id, optionIndex)
-                          }
+                          onClick={() => selectOption(question.id, optionIndex)}
                           className={cn(
                             "flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-small transition-colors",
                             !isSubmitted &&

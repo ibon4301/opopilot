@@ -98,12 +98,19 @@ export async function submitTestAttempt({
   const questionCount = graded.length;
   const score = Math.round((correctCount / questionCount) * 10000) / 100;
 
+  // El intento se crea al corregir: started_at y completed_at son el
+  // mismo instante. Se fijan ambos desde aquí porque mezclar el reloj de
+  // Node con el default now() de la DB puede violar el check
+  // completed_at >= started_at.
+  const gradedAt = new Date().toISOString();
+
   const { data: attempt, error: attemptError } = await supabase
     .from("test_attempts")
     .insert({
       test_id: input.testId,
       user_id: userId,
-      completed_at: new Date().toISOString(),
+      started_at: gradedAt,
+      completed_at: gradedAt,
       correct_count: correctCount,
       question_count: questionCount,
       score,
@@ -134,5 +141,11 @@ export async function submitTestAttempt({
     throw answersError;
   }
 
-  return { attemptId: attempt.id, score, correctCount, questionCount, questions: graded };
+  return {
+    attemptId: attempt.id,
+    score,
+    correctCount,
+    questionCount,
+    questions: graded,
+  };
 }

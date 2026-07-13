@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { TestDifficultyBadge } from "@/features/tests/components/test-difficulty-badge";
-import { TestQuestionsList } from "@/features/tests/components/test-questions-list";
+import { TestRunner } from "@/features/tests/components/test-runner";
 import { getTestAction } from "@/server/actions/tests";
 import { formatDate } from "@/utils/format";
 
@@ -54,7 +54,7 @@ export default async function TestDetailPage({
         )}
       </div>
 
-      <TestQuestionsList questions={test.questions} />
+      <TestRunner testId={test.id} questions={test.questions} />
     </FadeIn>
   );
 }
