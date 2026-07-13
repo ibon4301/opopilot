@@ -1,7 +1,6 @@
-import { ApiError } from "@google/genai";
-
 import { serverEnv } from "@/config/env.server";
 import { getGeminiClient } from "@/services/gemini/client";
+import { describeGeminiApiError } from "@/services/gemini/errors";
 
 import {
   EmbeddingError,
@@ -65,21 +64,9 @@ export const embedTexts: EmbedFn = async (texts, task) => {
 
     return embeddings.map((embedding) => normalize(embedding.values!));
   } catch (error) {
-    if (error instanceof ApiError) {
-      const invalidKey =
-        error.status === 401 ||
-        error.status === 403 ||
-        (error.status === 400 && error.message.includes("API key"));
-      if (invalidKey) {
-        throw new EmbeddingError(
-          "La API key de Gemini no es válida. Revisa GEMINI_API_KEY en .env.",
-        );
-      }
-      if (error.status === 429) {
-        throw new EmbeddingError(
-          "Gemini está limitando las peticiones (capa gratuita). Espera un minuto y vuelve a intentarlo.",
-        );
-      }
+    const friendly = describeGeminiApiError(error);
+    if (friendly) {
+      throw new EmbeddingError(friendly);
     }
     throw error;
   }

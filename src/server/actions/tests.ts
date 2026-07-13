@@ -17,6 +17,7 @@ import {
   type GenerateTestInput,
   type SubmitAttemptInput,
 } from "@/lib/validations/tests";
+import { DocumentContextError } from "@/services/document-context/document-context";
 import { EmbeddingError } from "@/services/embeddings/embedding-client";
 import {
   submitTestAttempt,
@@ -48,7 +49,9 @@ export type TestDetail = TestListItem & {
 };
 
 function toFriendlyError(error: unknown): string {
-  return error instanceof TestGenerationError || error instanceof EmbeddingError
+  return error instanceof TestGenerationError ||
+    error instanceof DocumentContextError ||
+    error instanceof EmbeddingError
     ? error.message
     : "No se pudo generar el test. Inténtalo de nuevo.";
 }

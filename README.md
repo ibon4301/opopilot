@@ -2,7 +2,7 @@
 
 Plataforma para preparar oposiciones y exámenes con inteligencia artificial.
 
-> **Estado:** Fase 7 — Generador de tests con IA sobre los documentos indexados. Responder y corregir tests, flashcards y chat llegan en fases posteriores.
+> **Estado:** Fase 9 — Flashcards con IA: generación de mazos desde los documentos indexados y sesión de estudio con valoraciones. El chat con documentos llega en la siguiente fase.
 
 ## Stack
 
@@ -42,9 +42,9 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 GEMINI_API_KEY=<gemini-api-key>
 ```
 
-### Configurar Gemini (embeddings y tests)
+### Configurar Gemini (embeddings y generación)
 
-Los embeddings usan la API de Gemini (`gemini-embedding-001`) y la generación de tests usa la familia Gemini Flash (`gemini-3.5-flash`, con fallback automático a otros Flash si el modelo está saturado; `gemini-2.5-flash` fue retirado de la API). Capa gratuita suficiente para desarrollo:
+Los embeddings usan la API de Gemini (`gemini-embedding-001`) y la generación de tests y flashcards usa **exclusivamente `gemini-3.1-flash-lite`** (temperatura baja, sin thinking, salida JSON estructurada). Es una política de costes: no hay fallbacks automáticos a modelos más caros — si el modelo no está disponible, la app devuelve un error controlado. Capa gratuita suficiente para desarrollo:
 
 1. Entra en [Google AI Studio](https://aistudio.google.com/) con tu cuenta de Google.
 2. Ve a la sección **API keys** ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
@@ -99,10 +99,20 @@ Con un documento en estado **Indexado** (procesado + embeddings):
 
 1. Ve a `/tests` y elige el documento, el número de preguntas (5, 10 o 20) y la dificultad (fácil, media, difícil o mixta).
 2. Opcionalmente escribe un **tema** ("los plazos del recurso de alzada"): el contexto se recupera por similitud semántica solo de ese tema; si lo dejas vacío, se muestrean fragmentos de todo el documento.
-3. Pulsa **Generar test**. La IA (Gemini Flash, salida estructurada JSON) crea las preguntas usando únicamente el contenido del documento; si el contexto no da para el test pedido devuelve un error claro en vez de inventar.
-4. El test se guarda con sus preguntas y con los fragmentos usados como contexto, y se abre en `/tests/{id}`: enunciado, 4 opciones con la correcta marcada, explicación y dificultad de cada pregunta.
+3. Pulsa **Generar test**. La IA (`gemini-3.1-flash-lite`, salida estructurada JSON) crea las preguntas usando únicamente el contenido del documento; si el contexto no da para el test pedido devuelve un error claro en vez de inventar.
+4. El test se guarda con sus preguntas y con los fragmentos usados como contexto, y se abre en `/tests/{id}` para hacerlo: respondes cada pregunta (la correcta nunca viaja al navegador), pulsas **Corregir test** y ves puntuación, aciertos/fallos y la explicación de cada pregunta. Cada corrección se guarda como un intento independiente y puedes reintentar el test cuantas veces quieras.
 
-> Todavía no se pueden responder ni corregir tests: eso llega en la siguiente fase.
+### Generar y estudiar flashcards
+
+Con un documento en estado **Indexado**:
+
+1. Ve a `/flashcards` y elige el documento, el número de tarjetas (10, 20 o 30), la dificultad y el tipo de tarjeta (pregunta y respuesta, concepto y definición, o mixto).
+2. Opcionalmente escribe un **tema**: el contexto se recupera por similitud semántica reutilizando los embeddings existentes; si lo dejas vacío, se muestrean fragmentos de todo el documento.
+3. Pulsa **Generar mazo**. Cada tarjeta trae anverso, reverso, dificultad y, cuando se conoce, una pista y la página de origen.
+4. El mazo se abre en `/flashcards/{id}` como sesión de estudio: ves el anverso, pulsas **Mostrar respuesta** y valoras tu recuerdo (**No la sabía / Difícil / Bien / Fácil**). Cada valoración se guarda en `flashcard_reviews`.
+5. Al terminar ves el resumen de valoraciones y puedes **Estudiar de nuevo** o volver al listado (donde también puedes eliminar mazos).
+
+> Las valoraciones se guardan como historial, pero todavía no hay repetición espaciada real (SM-2/FSRS): llegará con el plan de estudio, que decidirá qué tarjetas tocan cada día a partir de ese historial.
 
 ## Scripts
 
@@ -142,9 +152,10 @@ src/
 ├── lib/
 │   ├── supabase/     # Clientes browser/server tipados, helper de proxy, tipos generados
 │   └── validations/  # Schemas de Zod
-├── server/actions/   # Server Actions (auth, documents, embeddings, tests)
+├── server/actions/   # Server Actions (auth, documents, embeddings, tests, flashcards)
 ├── services/         # Lógica de dominio pesada: gemini (cliente compartido),
-│                     #   document-processing, embeddings, test-generation
+│                     #   document-processing, embeddings, document-context,
+│                     #   test-generation, test-attempts, flashcard-generation
 ├── providers/        # Providers de contexto global
 ├── types/            # Tipos compartidos
 ├── styles/           # Design tokens (theme.css)

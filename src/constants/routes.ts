@@ -40,6 +40,11 @@ export function testDetailRoute(testId: string) {
   return `${ROUTES.tests}/${testId}`;
 }
 
+/** Sesión de estudio de un mazo; cae bajo el prefijo protegido /flashcards. */
+export function flashcardDeckRoute(deckId: string) {
+  return `${ROUTES.flashcards}/${deckId}`;
+}
+
 export function isProtectedRoute(pathname: string) {
   return PROTECTED_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),

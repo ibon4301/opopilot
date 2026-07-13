@@ -3,6 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TestDifficulty } from "@/constants/tests";
 import type { Database } from "@/lib/supabase/types";
 import type { GenerateTestInput } from "@/lib/validations/tests";
+import {
+  getFullDocumentContext,
+  getGenerableDocument,
+  getTopicContext,
+} from "@/services/document-context/document-context";
 import { type EmbedFn } from "@/services/embeddings/embedding-client";
 import { embedTexts } from "@/services/embeddings/gemini-embeddings";
 
@@ -20,9 +25,6 @@ import { InvalidTestOutputError, parseGeneratedTest } from "./validators";
 const TOPIC_CONTEXT_CHUNKS = 12;
 const FULL_DOCUMENT_CONTEXT_CHUNKS = 24;
 
-/** Por debajo de esta similitud, el tema no está en el documento. */
-const TOPIC_MIN_SIMILARITY = 0.35;
-
 /** Un solo reintento cuando el modelo devuelve una respuesta inválida. */
 const MAX_GENERATION_ATTEMPTS = 2;
 
@@ -30,12 +32,6 @@ const INSUFFICIENT_CONTEXT_ERROR =
   "El documento no contiene información suficiente para generar este test. Prueba con otro tema o con menos preguntas.";
 
 type Supabase = SupabaseClient<Database>;
-
-interface ContextChunk {
-  id: string;
-  content: string;
-  pageNumber: number | null;
-}
 
 export interface GenerateTestParams {
   /** Cliente en contexto del usuario: RLS decide qué puede leer y escribir. */
@@ -68,8 +64,18 @@ export async function generateTest({
   const topic = input.topic ?? null;
 
   const contextChunks = topic
-    ? await getTopicContext(supabase, embed, document.id, topic)
-    : await getFullDocumentContext(supabase, document.id);
+    ? await getTopicContext({
+        supabase,
+        embed,
+        documentId: document.id,
+        topic,
+        maxChunks: TOPIC_CONTEXT_CHUNKS,
+      })
+    : await getFullDocumentContext({
+        supabase,
+        documentId: document.id,
+        maxChunks: FULL_DOCUMENT_CONTEXT_CHUNKS,
+      });
 
   const prompt = buildTestGenerationPrompt({
     documentName: document.filename,
@@ -96,116 +102,6 @@ export async function generateTest({
     questions,
     contextChunkIds: contextChunks.map((chunk) => chunk.id),
   });
-}
-
-// ------------------------------------------------------------
-// Recuperación del contexto
-// ------------------------------------------------------------
-
-async function getGenerableDocument(supabase: Supabase, documentId: string) {
-  const { data: document, error } = await supabase
-    .from("documents")
-    .select("id, filename, status")
-    .eq("id", documentId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-  if (!document) {
-    throw new TestGenerationError("El documento no existe.");
-  }
-  if (document.status !== "embedded") {
-    throw new TestGenerationError(
-      "El documento aún no está indexado. Procésalo y genera sus embeddings antes de crear tests.",
-    );
-  }
-  return document;
-}
-
-/**
- * Tema concreto: embedding de la consulta (los de los chunks ya
- * existen y nunca se recalculan) + top-k por similitud dentro del
- * documento vía la RPC match_document_chunks.
- */
-async function getTopicContext(
-  supabase: Supabase,
-  embed: EmbedFn,
-  documentId: string,
-  topic: string,
-): Promise<ContextChunk[]> {
-  const [queryEmbedding] = await embed([topic], "query");
-
-  const { data, error } = await supabase.rpc("match_document_chunks", {
-    query_embedding: JSON.stringify(queryEmbedding),
-    match_count: TOPIC_CONTEXT_CHUNKS,
-    filter_document_id: documentId,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  const relevant = data.filter(
-    (match) => match.similarity >= TOPIC_MIN_SIMILARITY,
-  );
-  if (relevant.length === 0) {
-    throw new TestGenerationError(
-      "No se ha encontrado contenido sobre ese tema en el documento. Prueba a formularlo de otra manera.",
-    );
-  }
-
-  return relevant.map((match) => ({
-    id: match.chunk_id,
-    content: match.content,
-    pageNumber: match.page_number,
-  }));
-}
-
-/**
- * Documento completo: muestreo uniforme de chunks a lo largo del
- * documento. Cubre todo el temario con un presupuesto fijo de tokens y
- * sin ninguna llamada extra al proveedor de embeddings.
- */
-async function getFullDocumentContext(
-  supabase: Supabase,
-  documentId: string,
-): Promise<ContextChunk[]> {
-  const { data: chunks, error } = await supabase
-    .from("document_chunks")
-    .select("id, content, page_number")
-    .eq("document_id", documentId)
-    .order("chunk_index");
-
-  if (error) {
-    throw error;
-  }
-  if (chunks.length === 0) {
-    throw new TestGenerationError(
-      "El documento no tiene fragmentos. Procésalo primero.",
-    );
-  }
-
-  return sampleEvenly(chunks, FULL_DOCUMENT_CONTEXT_CHUNKS).map((chunk) => ({
-    id: chunk.id,
-    content: chunk.content,
-    pageNumber: chunk.page_number,
-  }));
-}
-
-function sampleEvenly<T>(items: T[], max: number): T[] {
-  if (items.length <= max) {
-    return items;
-  }
-  const step = items.length / max;
-  const sampled: T[] = [];
-  for (let index = 0; index < max; index++) {
-    const item = items[Math.floor(index * step)];
-    if (item !== undefined) {
-      sampled.push(item);
-    }
-  }
-  return sampled;
 }
 
 // ------------------------------------------------------------

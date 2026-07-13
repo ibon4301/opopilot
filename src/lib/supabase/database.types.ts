@@ -287,50 +287,193 @@ export type Database = {
           },
         ];
       };
+      flashcard_deck_context_chunks: {
+        Row: {
+          chunk_id: string;
+          created_at: string;
+          deck_id: string;
+          user_id: string;
+        };
+        Insert: {
+          chunk_id: string;
+          created_at?: string;
+          deck_id: string;
+          user_id: string;
+        };
+        Update: {
+          chunk_id?: string;
+          created_at?: string;
+          deck_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flashcard_deck_context_chunks_chunk_id_user_id_fkey";
+            columns: ["chunk_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "document_chunks";
+            referencedColumns: ["id", "user_id"];
+          },
+          {
+            foreignKeyName: "flashcard_deck_context_chunks_deck_id_user_id_fkey";
+            columns: ["deck_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "flashcard_decks";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
+      flashcard_decks: {
+        Row: {
+          card_count: number;
+          created_at: string;
+          difficulty: Database["public"]["Enums"]["question_difficulty"] | null;
+          document_id: string | null;
+          id: string;
+          title: string;
+          topic: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          card_count: number;
+          created_at?: string;
+          difficulty?:
+            Database["public"]["Enums"]["question_difficulty"] | null;
+          document_id?: string | null;
+          id?: string;
+          title: string;
+          topic?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          card_count?: number;
+          created_at?: string;
+          difficulty?:
+            Database["public"]["Enums"]["question_difficulty"] | null;
+          document_id?: string | null;
+          id?: string;
+          title?: string;
+          topic?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flashcard_decks_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "flashcard_decks_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      flashcard_reviews: {
+        Row: {
+          flashcard_id: string;
+          id: number;
+          rating: Database["public"]["Enums"]["flashcard_rating"];
+          reviewed_at: string;
+          user_id: string;
+        };
+        Insert: {
+          flashcard_id: string;
+          id?: never;
+          rating: Database["public"]["Enums"]["flashcard_rating"];
+          reviewed_at?: string;
+          user_id: string;
+        };
+        Update: {
+          flashcard_id?: string;
+          id?: never;
+          rating?: Database["public"]["Enums"]["flashcard_rating"];
+          reviewed_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "flashcard_reviews_flashcard_id_user_id_fkey";
+            columns: ["flashcard_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "flashcards";
+            referencedColumns: ["id", "user_id"];
+          },
+        ];
+      };
       flashcards: {
         Row: {
           back: string;
           created_at: string;
+          deck_id: string | null;
+          difficulty: Database["public"]["Enums"]["question_difficulty"];
           document_id: string | null;
           due_at: string;
           ease_factor: number;
           front: string;
+          hint: string | null;
           id: string;
           interval_days: number;
           last_reviewed_at: string | null;
+          order_index: number | null;
           repetitions: number;
+          source_page: number | null;
           updated_at: string;
           user_id: string;
         };
         Insert: {
           back: string;
           created_at?: string;
+          deck_id?: string | null;
+          difficulty?: Database["public"]["Enums"]["question_difficulty"];
           document_id?: string | null;
           due_at?: string;
           ease_factor?: number;
           front: string;
+          hint?: string | null;
           id?: string;
           interval_days?: number;
           last_reviewed_at?: string | null;
+          order_index?: number | null;
           repetitions?: number;
+          source_page?: number | null;
           updated_at?: string;
           user_id: string;
         };
         Update: {
           back?: string;
           created_at?: string;
+          deck_id?: string | null;
+          difficulty?: Database["public"]["Enums"]["question_difficulty"];
           document_id?: string | null;
           due_at?: string;
           ease_factor?: number;
           front?: string;
+          hint?: string | null;
           id?: string;
           interval_days?: number;
           last_reviewed_at?: string | null;
+          order_index?: number | null;
           repetitions?: number;
+          source_page?: number | null;
           updated_at?: string;
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "flashcards_deck_id_user_id_fkey";
+            columns: ["deck_id", "user_id"];
+            isOneToOne: false;
+            referencedRelation: "flashcard_decks";
+            referencedColumns: ["id", "user_id"];
+          },
           {
             foreignKeyName: "flashcards_document_id_fkey";
             columns: ["document_id"];
@@ -738,6 +881,7 @@ export type Database = {
         | "failed"
         | "processed"
         | "embedded";
+      flashcard_rating: "again" | "hard" | "good" | "easy";
       question_difficulty: "easy" | "medium" | "hard";
       test_status: "generating" | "ready" | "failed";
     };
@@ -895,6 +1039,7 @@ export const Constants = {
         "processed",
         "embedded",
       ],
+      flashcard_rating: ["again", "hard", "good", "easy"],
       question_difficulty: ["easy", "medium", "hard"],
       test_status: ["generating", "ready", "failed"],
     },

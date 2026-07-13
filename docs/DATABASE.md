@@ -12,9 +12,11 @@ auth.users ──trigger──▶ profiles ──▶ credits ──▶ credit_tr
    documents           study_plans               usage_logs
         │
         ├──▶ document_chunks (embeddings pgvector)
-        ├──▶ flashcards (set null)
+        ├──▶ flashcard_decks (set null) ──▶ flashcards ──▶ flashcard_reviews
+        │            └──▶ flashcard_deck_context_chunks
         ├──▶ chat_conversations (set null) ──▶ chat_messages
         └──▶ tests (set null) ──▶ questions
+                  ├──▶ test_context_chunks
                   └──▶ test_attempts ──▶ test_attempt_answers
 ```
 
@@ -24,19 +26,20 @@ Todas las tablas de dominio cuelgan de `profiles` (que a su vez cuelga de `auth.
 
 En `supabase/migrations/`, una por dominio:
 
-| Migración                      | Contenido                                                              |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| `*_extensions_and_helpers.sql` | Extensión `vector`, función `set_updated_at()`                         |
-| `*_profiles.sql`               | `profiles` + RLS                                                       |
-| `*_credits.sql`                | `credits`, `credit_transactions`, `spend_credits()`, trigger de signup |
-| `*_documents.sql`              | `documents`, `document_chunks` + índice HNSW                           |
-| `*_tests.sql`                  | `tests`, `questions`, `test_attempts`, `test_attempt_answers`          |
-| `*_flashcards.sql`             | `flashcards` (campos SM-2)                                             |
-| `*_study_plans.sql`            | `study_plans`                                                          |
-| `*_chat.sql`                   | `chat_conversations`, `chat_messages`                                  |
-| `*_usage_logs.sql`             | `usage_logs`                                                           |
-| `*_storage.sql`                | Bucket `documents` + policies de Storage                               |
-| `*_test_generation.sql`        | `tests.topic`, `test_context_chunks`, RPC con `filter_document_id`     |
+| Migración                      | Contenido                                                               |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `*_extensions_and_helpers.sql` | Extensión `vector`, función `set_updated_at()`                          |
+| `*_profiles.sql`               | `profiles` + RLS                                                        |
+| `*_credits.sql`                | `credits`, `credit_transactions`, `spend_credits()`, trigger de signup  |
+| `*_documents.sql`              | `documents`, `document_chunks` + índice HNSW                            |
+| `*_tests.sql`                  | `tests`, `questions`, `test_attempts`, `test_attempt_answers`           |
+| `*_flashcards.sql`             | `flashcards` (campos SM-2)                                              |
+| `*_study_plans.sql`            | `study_plans`                                                           |
+| `*_chat.sql`                   | `chat_conversations`, `chat_messages`                                   |
+| `*_usage_logs.sql`             | `usage_logs`                                                            |
+| `*_storage.sql`                | Bucket `documents` + policies de Storage                                |
+| `*_test_generation.sql`        | `tests.topic`, `test_context_chunks`, RPC con `filter_document_id`      |
+| `*_flashcard_decks.sql`        | `flashcard_decks`, columnas Fase 9 en `flashcards`, `flashcard_reviews` |
 
 ### Aplicar en producción
 
@@ -101,12 +104,13 @@ Los tests generados reutilizan las tablas `tests` y `questions` diseñadas en la
 ### Cascadas: `cascade` vs `set null`
 
 - `on delete cascade`: datos que no tienen sentido sin su padre (chunks, questions, attempts, messages).
-- `on delete set null`: `documents ← flashcards / tests / chat_conversations`. Borrar un PDF no destruye el material de estudio ni el historial que el usuario generó a partir de él.
+- `on delete set null`: `documents ← flashcard_decks / flashcards / tests / chat_conversations`. Borrar un PDF no destruye el material de estudio ni el historial que el usuario generó a partir de él.
 
 ### Otros
 
 - **`questions.options` en jsonb** (array de strings, 2–6 elementos, validado con `check`): las opciones no se consultan individualmente, siempre viajan con la pregunta. `correct_option` indexa el array y un `check` garantiza que está en rango.
-- **Flashcards con SM-2**: `ease_factor`, `interval_days`, `repetitions`, `due_at` listos para la Fase 9; `(user_id, due_at)` indexado para la cola de repaso.
+- **Flashcards en mazos**: `flashcard_decks` agrupa las tarjetas generadas de una vez (título, tema, dificultad, `card_count`); `flashcards` ganó en la Fase 9 `deck_id` (FK compuesta, cascade), `hint`, `difficulty`, `source_page` y `order_index`. `flashcard_deck_context_chunks` registra los chunks del contexto (mismo patrón que `test_context_chunks`).
+- **`flashcard_reviews` (historial de estudio)**: append-only con `bigint identity` (como `usage_logs`); `rating` es el enum `flashcard_rating` (`again | hard | good | easy`). La FK compuesta `(flashcard_id, user_id) → flashcards` hace que valorar una tarjeta ajena viole la FK: la propiedad la garantiza el esquema. Todavía sin repetición espaciada real: los campos SM-2 de `flashcards` (`ease_factor`, `interval_days`, `repetitions`, `due_at`, indexados por `(user_id, due_at)`) siguen sin usarse y la fase de plan de estudio los calculará a partir de este historial.
 - **`study_plans.schedule` en jsonb**: la estructura del plan la genera la IA y evolucionará; un índice único parcial garantiza un solo plan `is_active` por usuario.
 - **`usage_logs` con `bigint identity`**: tabla append-only de alto volumen; no necesita uuid.
 - **Estados como enums** (`document_status`, `test_status`, `question_difficulty`, `credit_transaction_kind`, `chat_role`, `ai_action`): tipados en la DB y en TypeScript, imposible guardar un estado inválido.
